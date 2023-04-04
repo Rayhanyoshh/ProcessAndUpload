@@ -11,13 +11,23 @@ internal class Program
     static R_HTTPClient? loClient;
     private static void Main(string[] args)
     {
-        loHttpClient = new HttpClient();
-        loHttpClient.BaseAddress = new Uri("http://localhost:5137");
-        R_HTTPClient.R_CreateInstanceWithName("DEFAULT", loHttpClient);
-        loClient = R_HTTPClient.R_GetInstanceWithName("DEFAULT");
+        R_APIException loException = new R_APIException();
+        try
+        {
+            loHttpClient = new HttpClient();
+            loHttpClient.BaseAddress = new Uri("http://localhost:5137");
+            R_HTTPClient.R_CreateInstanceWithName("DEFAULT", loHttpClient);
+            loClient = R_HTTPClient.R_GetInstanceWithName("DEFAULT");
 
-        //Task.Run(() => ServiceAttachFile());
-        Task.Run(() => ServiceProcess());
+            //Task.Run(() => ServiceAttachFile());
+            //Task.Run(() => ServiceProcess());
+            Task.Run(() => ServiceSaveBatchWithBulkCopy(false));
+        }
+        catch (Exception ex)
+        {
+            loException.add(ex);
+        }
+
         Console.ReadKey();
     }
 
@@ -114,4 +124,86 @@ internal class Program
     EndBlock:
         loException.ThrowExceptionIfErrors();
     }
+    private static async Task ServiceSaveBatchWithBulkCopy(bool plGenerateErrorData)
+    {
+        R_APIException loException = new R_APIException();
+        R_BatchParameter loBatchPar;
+        List<EmployeeDTO> loBigObject;
+        R_ProcessAndUploadClient loCls;
+
+        R_IProcessProgressStatus loProgressStatus;
+
+
+        string lcRtn;
+
+        try
+        {
+            // Kirim Data ke Big Object
+            loBigObject = GenerateEmployeeData("01", 100, plGenerateErrorData);
+
+            loProgressStatus = new ProcessStatus();
+
+            // Instantiate ProcessClient
+            loCls = new R_ProcessAndUploadClient(poProcessProgressStatus: loProgressStatus, plSendWithContext: false, plSendWithToken: false);
+
+            // preapare Batch Parameter
+            loBatchPar = new R_BatchParameter();
+
+            loBatchPar.COMPANY_ID = "01";
+            loBatchPar.USER_ID = "GY";
+            loBatchPar.ClassName = "ProcessBack.SaveBatchWithBulkCopyCls";
+            loBatchPar.BigObject = loBigObject;
+
+            //Initial For Error Report
+            ((ProcessStatus)loProgressStatus).CompanyId = loBatchPar.COMPANY_ID;
+            ((ProcessStatus)loProgressStatus).UserId = loBatchPar.USER_ID;
+
+
+            lcRtn = await loCls.R_BatchProcess<List<EmployeeDTO>>(loBatchPar, 100);
+        }
+        catch (Exception ex)
+        {
+            loException.add(ex);
+        }
+    EndBlock:
+        loException.ThrowExceptionIfErrors();
+
+    }
+
+    private static List<EmployeeDTO> GenerateEmployeeData(string pcCoId, int pnTotalEmployee, bool plGenerateErrorData)
+    {
+        List<EmployeeDTO> loRtn = new List<EmployeeDTO>();
+        string lcSex;
+
+        for (var lnCount = 1; lnCount <= pnTotalEmployee; lnCount++)
+        {
+            if (plGenerateErrorData && lnCount == 3)
+                lcSex = "D";
+            else
+                if ((lnCount % 2) == 0)
+            {
+                lcSex = "M";
+            }
+            else
+            {
+                lcSex = "F";
+            }
+
+            loRtn.Add(new EmployeeDTO()
+            {
+                CompanyId = pcCoId.Trim(),
+                EmployeeId = string.Format("Emp{0}", lnCount.ToString("00000")),
+                FirstName = string.Format("Employee {0}", lnCount.ToString("00000")),
+                LastName = string.Format("Last Name {0}", lnCount.ToString("00000")),
+                SeqNo = lnCount,
+                SexId = lcSex,
+                TotalChildren = (lnCount % 3)
+            });
+        }
+
+
+        return loRtn;
+    }
+
 }
+

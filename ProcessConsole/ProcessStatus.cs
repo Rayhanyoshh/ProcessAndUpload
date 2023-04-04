@@ -1,11 +1,6 @@
 using R_APICommonDTO;
 using R_CommonFrontBackAPI;
 using R_ProcessAndUploadFront;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ProcessConsole
 {
@@ -14,33 +9,57 @@ namespace ProcessConsole
         public string CompanyId { get; set; }
         public string UserId { get; set; }
 
-        public Task ProcessComplete(string pcKeyGuid, eProcessResultMode poProcessResultMode)
+        public async Task ProcessComplete(string pcKeyGuid, eProcessResultMode poProcessResultMode)
         {
             if (poProcessResultMode == eProcessResultMode.Success)
             {
-                Console.WriteLine($"Process Complete with no error With GUID {pcKeyGuid}");
+                Console.WriteLine($"Process Complete - Success with GUID {pcKeyGuid}");
+
             }
             else
             {
-                Console.WriteLine($"Process Complete with GUID {pcKeyGuid}");
+                Console.WriteLine($"Process Complete - Failed with Error GUID {pcKeyGuid}");
+                await GetError(pcKeyGuid);
             }
-            return Task.CompletedTask;
+
         }
 
         public Task ProcessError(string pcKeyGuid, R_APIException ex)
         {
-            Console.WriteLine($"Process Fail with GUID {pcKeyGuid}");
             foreach (R_Error item in ex.ErrorList)
             {
-                Console.WriteLine($"{item.ErrDescp}");
+                Console.WriteLine($"Process Fail with GUID {pcKeyGuid}");
             }
             return Task.CompletedTask;
         }
 
         public Task ReportProgress(int pnProgress, string pcStatus)
         {
-            Console.WriteLine($"Step {pnProgress} with status :{pcStatus}");
+            Console.WriteLine($"Step {pnProgress} with status {pcStatus}");
             return Task.CompletedTask;
         }
+
+        private async Task GetError(string pcKeyGuid)
+        {
+            R_APIException loException;
+            R_ProcessAndUploadClient loCls;
+            List<R_ErrorStatusReturn> loErrStatusRtn;
+
+            try
+            {
+                loCls = new R_ProcessAndUploadClient(plSendWithContext: false, plSendWithToken: false);
+                loErrStatusRtn = await loCls.R_GetErrorProcess(new R_UploadAndProcessKey() { COMPANY_ID = this.CompanyId, USER_ID = this.UserId, KEY_GUID = pcKeyGuid });
+                foreach (R_ErrorStatusReturn item in loErrStatusRtn)
+                {
+                    Console.WriteLine($"Get Message From Get Error : {item.ErrorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+        }
+
     }
 }
